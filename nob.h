@@ -308,7 +308,7 @@ NOBDEF bool nob_walk_dir_opt(const char *root, Nob_Walk_Func func, Nob_Walk_Dir_
 #define nob_walk_dir(root, func, ...) nob_walk_dir_opt((root), (func), NOB_CLIT(Nob_Walk_Dir_Opt){__VA_ARGS__})
 
 typedef struct {
-    const char *name;
+    char *name;
     bool error;
 
     struct {
@@ -2030,7 +2030,7 @@ NOBDEF bool nob_dir_entry_next(Nob_Dir_Entry *dir)
 #ifdef _WIN32
     if (!dir->nob__private.win32_init) {
         dir->nob__private.win32_init = true;
-        dir->name = nob_win32_temp_utf16_to_utf8(dir->nob__private.win32_data.cFileName);
+        dir->name = (char*)nob_win32_temp_utf16_to_utf8(dir->nob__private.win32_data.cFileName);
         return true;
     }
 
@@ -2040,7 +2040,7 @@ NOBDEF bool nob_dir_entry_next(Nob_Dir_Entry *dir)
         dir->error = true;
         return false;
     }
-    dir->name = nob_win32_temp_utf16_to_utf8(dir->nob__private.win32_data.cFileName);
+    dir->name = (char*)nob_win32_temp_utf16_to_utf8(dir->nob__private.win32_data.cFileName);
 #else
     errno = 0;
     dir->nob__private.posix_ent = readdir(dir->nob__private.posix_dir);
