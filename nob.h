@@ -2752,7 +2752,7 @@ NOBDEF const char *nob_get_current_dir_temp(void)
     int nUtf8BufferLength = WideCharToMultiByte(CP_UTF8, 0, utf16_buffer, nBufferLength, NULL, 0, NULL, NULL);
     if(nUtf8BufferLength == 0){
       nob_log(NOB_ERROR, "Could not determine utf8 path size: %s", nob_win32_error_message(GetLastError()));
-      return false;
+      return NULL;
     }
     
     char* buffer;
@@ -2761,7 +2761,7 @@ NOBDEF const char *nob_get_current_dir_temp(void)
     nUtf8BufferLength = WideCharToMultiByte(CP_UTF8, 0, utf16_buffer, nBufferLength, buffer, nUtf8BufferLength, NULL, NULL);
     if(nBufferLength == 0){
       nob_log(NOB_ERROR, "Could not convert utf16 path to utf8: %s", nob_win32_error_message(GetLastError()));
-      return false;
+      return NULL;
     }
 
 
