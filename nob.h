@@ -1026,7 +1026,7 @@ NOBDEF LPCWSTR nob_win32_temp_utf8_to_utf16(const char* str){
   }
 
   LPWSTR wstr;
-  wstr = nob_temp_alloc(n*sizeof(*wstr));
+  wstr = (LPWSTR)nob_temp_alloc(n*sizeof(*wstr));
 
   n = MultiByteToWideChar(CP_UTF8, 0, str, -1, wstr, n);
   if(n == 0){
@@ -1048,7 +1048,7 @@ NOBDEF const char* nob_win32_temp_utf16_to_utf8(LPCWSTR wstr){
   }
 
   char* str;
-  str = nob_temp_alloc(n*sizeof(*str));
+  str = (char*)nob_temp_alloc(n*sizeof(*str));
 
   n = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, str, n, NULL, NULL);
   if(n == 0){
