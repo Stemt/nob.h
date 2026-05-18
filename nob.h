@@ -308,12 +308,12 @@ NOBDEF bool nob_walk_dir_opt(const char *root, Nob_Walk_Func func, Nob_Walk_Dir_
 #define nob_walk_dir(root, func, ...) nob_walk_dir_opt((root), (func), NOB_CLIT(Nob_Walk_Dir_Opt){__VA_ARGS__})
 
 typedef struct {
-    char *name;
+    const char *name;
     bool error;
 
     struct {
 #ifdef _WIN32
-        WIN32_FIND_DATA win32_data;
+        WIN32_FIND_DATAW win32_data;
         HANDLE win32_hFind;
         bool win32_init;
 #else
@@ -951,6 +951,7 @@ NOBDEF Nob_String_View nob_sv_from_parts(const char *data, size_t count);
 #ifdef _WIN32
 
 NOBDEF char *nob_win32_error_message(DWORD err);
+NOBDEF LPCWSTR nob_win32_temp_utf8_to_utf16(const char* str);
 
 #endif // _WIN32
 
@@ -1012,6 +1013,50 @@ NOBDEF char *nob_win32_error_message(DWORD err) {
     }
 
     return win32ErrMsg;
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/api/stringapiset/nf-stringapiset-multibytetowidechar
+NOBDEF LPCWSTR nob_win32_temp_utf8_to_utf16(const char* str){
+
+  // n is the output strings size in charachters and includes size for null terminator due to -1
+  int n = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
+  if(n == 0){
+    nob_log(NOB_ERROR, "Could not determine charachter count for utf8 to utf16 conversion: %s", nob_win32_error_message(GetLastError()));
+    return NULL;
+  }
+
+  LPWSTR wstr;
+  wstr = nob_temp_alloc(n*sizeof(*wstr));
+
+  n = MultiByteToWideChar(CP_UTF8, 0, str, -1, wstr, n);
+  if(n == 0){
+    nob_log(NOB_ERROR, "Could not convert utf8 to utf16: %s", nob_win32_error_message(GetLastError()));
+    return NULL;
+  }
+
+  return wstr;
+}
+
+// https://learn.microsoft.com/en-us/windows/win32/api/stringapiset/nf-stringapiset-widechartomultibyte
+NOBDEF const char* nob_win32_temp_utf16_to_utf8(LPCWSTR wstr){
+
+  // n is the output strings size in bytes and includes size for null terminator due to -1
+  int n = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
+  if(n == 0){
+    nob_log(NOB_ERROR, "Could not determine byte count for utf16 to utf8 conversion: %s", nob_win32_error_message(GetLastError()));
+    return NULL;
+  }
+
+  char* str;
+  str = nob_temp_alloc(n*sizeof(*str));
+
+  n = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, str, n, NULL, NULL);
+  if(n == 0){
+    nob_log(NOB_ERROR, "Could not convert utf16 to utf8: %s", nob_win32_error_message(GetLastError()));
+    return NULL;
+  }
+
+  return str;
 }
 
 #endif // _WIN32
@@ -1218,6 +1263,7 @@ static void nob__win32_cmd_quote(Nob_Cmd cmd, Nob_String_Builder *quoted)
         }
     }
 }
+
 #endif
 
 NOBDEF int nob_nprocs(void)
@@ -1959,8 +2005,8 @@ NOBDEF bool nob_dir_entry_open(const char *dir_path, Nob_Dir_Entry *dir)
     memset(dir, 0, sizeof(*dir));
 #ifdef _WIN32
     size_t temp_mark = nob_temp_save();
-    char *buffer = nob_temp_sprintf("%s\\*", dir_path);
-    dir->nob__private.win32_hFind = FindFirstFile(buffer, &dir->nob__private.win32_data);
+    LPCWSTR buffer = nob_win32_temp_utf8_to_utf16(nob_temp_sprintf("%s\\*", dir_path));
+    dir->nob__private.win32_hFind = FindFirstFileW(buffer, &dir->nob__private.win32_data);
     nob_temp_rewind(temp_mark);
 
     if (dir->nob__private.win32_hFind == INVALID_HANDLE_VALUE) {
@@ -1984,17 +2030,17 @@ NOBDEF bool nob_dir_entry_next(Nob_Dir_Entry *dir)
 #ifdef _WIN32
     if (!dir->nob__private.win32_init) {
         dir->nob__private.win32_init = true;
-        dir->name = dir->nob__private.win32_data.cFileName;
+        dir->name = nob_win32_temp_utf16_to_utf8(dir->nob__private.win32_data.cFileName);
         return true;
     }
 
-    if (!FindNextFile(dir->nob__private.win32_hFind, &dir->nob__private.win32_data)) {
+    if (!FindNextFileW(dir->nob__private.win32_hFind, &dir->nob__private.win32_data)) {
         if (GetLastError() == ERROR_NO_MORE_FILES) return false;
         nob_log(NOB_ERROR, "Could not read next directory entry: %s", nob_win32_error_message(GetLastError()));
         dir->error = true;
         return false;
     }
-    dir->name = dir->nob__private.win32_data.cFileName;
+    dir->name = nob_win32_temp_utf16_to_utf8(dir->nob__private.win32_data.cFileName);
 #else
     errno = 0;
     dir->nob__private.posix_ent = readdir(dir->nob__private.posix_dir);
