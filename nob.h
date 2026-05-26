@@ -2180,7 +2180,7 @@ NOBDEF bool nob_write_entire_file(const char *path, const void *data, size_t siz
     WCHAR utf16_buffer[MAX_PATH];
     int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, utf16_buffer, sizeof(utf16_buffer));
     if(n == 0){
-        nob_log(NOB_ERROR, "Could not convert dir_path name from utf8 to utf16: %s", nob_win32_error_message(GetLastError()));
+        nob_log(NOB_ERROR, "Could not convert file path from utf8 to utf16: %s", nob_win32_error_message(GetLastError()));
         return false;
     }
 
@@ -2528,7 +2528,7 @@ NOBDEF bool nob_read_entire_file(const char *path, Nob_String_Builder *sb)
     WCHAR wpath[MAX_PATH];
     int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, sizeof(wpath));
     if(n == 0){
-        nob_log(NOB_ERROR, "Could not convert dir_path name from utf8 to utf16: %s", nob_win32_error_message(GetLastError()));
+        nob_log(NOB_ERROR, "Could not convert file path from utf8 to utf16: %s", nob_win32_error_message(GetLastError()));
         return false;
     }
     FILE *f = _wfopen(wpath, L"rb");
