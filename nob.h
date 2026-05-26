@@ -1076,10 +1076,25 @@ static char nob_temp[NOB_TEMP_CAPACITY] = {0};
 NOBDEF bool nob_mkdir_if_not_exists(const char *path)
 {
 #ifdef _WIN32
-    int result = _mkdir(path);
+    WCHAR utf16_buffer[MAX_PATH];
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, utf16_buffer, sizeof(utf16_buffer));
+    if(n == 0){
+        nob_log(NOB_ERROR, "Could not convert dir_path name from utf8 to utf16: %s", nob_win32_error_message(GetLastError()));
+        return false;
+    }
+    
+    int result = CreateDirectoryW(utf16_buffer, NULL);
+    if(result == 0){
+      if(GetLastError() == ERROR_ALREADY_EXISTS){
+        nob_log(NOB_INFO, "directory `%s` already exists", path);
+        return true;
+      }else{
+        nob_log(NOB_ERROR, "Could not create directory: %s", nob_win32_error_message(GetLastError()));
+        return false;
+      }
+    }
 #else
     int result = mkdir(path, 0755);
-#endif
     if (result < 0) {
         if (errno == EEXIST) {
 #ifndef NOB_NO_ECHO
@@ -1090,6 +1105,7 @@ NOBDEF bool nob_mkdir_if_not_exists(const char *path)
         nob_log(NOB_ERROR, "could not create directory `%s`: %s", path, strerror(errno));
         return false;
     }
+#endif
 
 #ifndef NOB_NO_ECHO
     nob_log(NOB_INFO, "created directory `%s`", path);
@@ -2160,7 +2176,18 @@ NOBDEF bool nob_write_entire_file(const char *path, const void *data, size_t siz
     bool result = true;
 
     const char *buf = NULL;
+#ifdef _WIN32
+    WCHAR utf16_buffer[MAX_PATH];
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, utf16_buffer, sizeof(utf16_buffer));
+    if(n == 0){
+        nob_log(NOB_ERROR, "Could not convert dir_path name from utf8 to utf16: %s", nob_win32_error_message(GetLastError()));
+        return false;
+    }
+
+    FILE* f = _wfopen(utf16_buffer, L"wb");
+#else
     FILE *f = fopen(path, "wb");
+#endif
     if (f == NULL) {
         nob_log(NOB_ERROR, "Could not open file %s for writing: %s\n", path, strerror(errno));
         nob_return_defer(false);
@@ -2497,7 +2524,17 @@ NOBDEF bool nob_read_entire_file(const char *path, Nob_String_Builder *sb)
 {
     bool result = true;
 
+#ifdef _WIN32
+    WCHAR wpath[MAX_PATH];
+    int n = MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, sizeof(wpath));
+    if(n == 0){
+        nob_log(NOB_ERROR, "Could not convert dir_path name from utf8 to utf16: %s", nob_win32_error_message(GetLastError()));
+        return false;
+    }
+    FILE *f = _wfopen(wpath, L"rb");
+#else
     FILE *f = fopen(path, "rb");
+#endif
     size_t new_count = 0;
     long long m = 0;
     if (f == NULL)                 nob_return_defer(false);
@@ -2740,16 +2777,16 @@ NOBDEF const char *nob_get_current_dir_temp(void)
         return NULL;
     }
 
-    LPWSTR utf16_buffer;
-    utf16_buffer = (LPWSTR) nob_temp_alloc(nBufferLength*sizeof(*utf16_buffer));
+    LPWSTR wpath;
+    wpath = (LPWSTR) nob_temp_alloc(nBufferLength*sizeof(*wpath));
 
-    if (GetCurrentDirectoryW(nBufferLength, utf16_buffer) == 0) {
+    if (GetCurrentDirectoryW(nBufferLength, wpath) == 0) {
         nob_log(NOB_ERROR, "could not get current directory: %s", nob_win32_error_message(GetLastError()));
         return NULL;
     }
 
 
-    int nUtf8BufferLength = WideCharToMultiByte(CP_UTF8, 0, utf16_buffer, nBufferLength, NULL, 0, NULL, NULL);
+    int nUtf8BufferLength = WideCharToMultiByte(CP_UTF8, 0, wpath, nBufferLength, NULL, 0, NULL, NULL);
     if(nUtf8BufferLength == 0){
       nob_log(NOB_ERROR, "Could not determine utf8 path size: %s", nob_win32_error_message(GetLastError()));
       return NULL;
@@ -2758,7 +2795,7 @@ NOBDEF const char *nob_get_current_dir_temp(void)
     char* buffer;
     buffer = (char*) nob_temp_alloc(nUtf8BufferLength*sizeof(*buffer));
     
-    nUtf8BufferLength = WideCharToMultiByte(CP_UTF8, 0, utf16_buffer, nBufferLength, buffer, nUtf8BufferLength, NULL, NULL);
+    nUtf8BufferLength = WideCharToMultiByte(CP_UTF8, 0, wpath, nBufferLength, buffer, nUtf8BufferLength, NULL, NULL);
     if(nBufferLength == 0){
       nob_log(NOB_ERROR, "Could not convert utf16 path to utf8: %s", nob_win32_error_message(GetLastError()));
       return NULL;
